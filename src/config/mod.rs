@@ -15,6 +15,8 @@ pub use button::*;
 
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, mutex::Mutex, signal};
 
+use crate::config::server::ServerState;
+
 type Signal<T> = signal::Signal<CriticalSectionRawMutex, T>;
 
 pub static CONFIG_MQTT: Signal<MqttConfig> = Signal::new();
@@ -27,14 +29,14 @@ type AppI2C = I2C<'static, I2C0>;
 static EEPROM_I2C: Mutex<CriticalSectionRawMutex, Option<AppI2C>> = Mutex::new(None);
 
 /// returns force_ap -> wifi config was not loaded, enable AP in any case
-pub async fn run_config(mut i2c: AppI2C) {
+pub async fn run_config(i2c: AppI2C) {
+    *EEPROM_I2C.lock().await = Some(i2c);
+
     // if everything goes well, do nothing
-    if read_config(&mut i2c).await == Ok(()) {
+    if read_config().await == Ok(()) {
         println!("loaded config from EEPROM");
         return;
     }
-
-    *EEPROM_I2C.lock().await = Some(i2c);
 
     println!("using default config");
 
@@ -49,11 +51,14 @@ pub async fn run_config(mut i2c: AppI2C) {
 const CRC: Crc<u32> = Crc::<u32>::new(&CRC_32_ISCSI);
 const EEPROM_ADDR: u8 = 0b101_0000;
 
-async fn read_config(i2c: &mut AppI2C) -> Result<(), ()> {
+async fn read_config() -> Result<(), ()> {
     let mut buffer = [0u8; 4096];
 
     // read into buffer in loop, i2c driver supports max read of 32 bytes
     const PAGE_SIZE: usize = 16;
+
+    let mut i2c = EEPROM_I2C.lock().await;
+    let i2c = i2c.as_mut().unwrap();
 
     // read with address setup first
     // we have a 32K EEPROM -> two address bytes
@@ -109,10 +114,17 @@ async fn read_config(i2c: &mut AppI2C) -> Result<(), ()> {
         return Err(());
     }
 
-    CONFIG_MQTT.signal(mqtt);
-    CONFIG_WIFI.signal(wifi);
-    CONFIG_STPM.signal(stpm);
-    CONFIG_CALIBRATION.signal(calibration);
+    CONFIG_MQTT.signal(mqtt.clone());
+    CONFIG_WIFI.signal(wifi.clone());
+    CONFIG_STPM.signal(stpm.clone());
+    CONFIG_CALIBRATION.signal(calibration.clone());
+
+    server::STATE.lock().await.replace(ServerState{
+        mqtt,
+        wifi,
+        stpm,
+        calibration,
+    });
 
     Ok(())
 }
@@ -169,7 +181,7 @@ pub async fn save_config() -> Option<()> {
         Timer::after_millis(5).await;
 
         addr += PAGE_SIZE as u16;
-        buffer = &mut buffer[PAGE_SIZE..];
+        buffer = &mut buffer[len-2..];
     }
 
     println!("end saving to EEPROM");

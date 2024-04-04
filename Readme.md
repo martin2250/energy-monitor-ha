@@ -24,4 +24,5 @@
 requires a >32kbit< SOT-23 EEPROM, eg `AT24C32E`
 
 ## TODO:
+- fix energy counter
 - use + update zcr config from MQTT

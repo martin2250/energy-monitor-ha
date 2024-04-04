@@ -40,8 +40,6 @@ pub static STATE: Mutex<CriticalSectionRawMutex, Option<ServerState>> = Mutex::n
 
 #[embassy_executor::task]
 pub async fn run_config_server(stack_sta: &'static StackSta, stack_ap: Option<&'static StackAp>) {
-    STATE.lock().await.replace(Default::default());
-
     fn make_app() -> picoserve::Router<AppRouter> {
         picoserve::Router::new()
             .route("/", get(|| async move { "Hello World" }))

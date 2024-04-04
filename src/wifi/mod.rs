@@ -90,17 +90,17 @@ async fn run_wifi(mut controller: WifiController<'static>, stack_sta: &'static S
         let net_config = match config.config {
             NetworkConfiguration::Dhcp => ConfigV4::Dhcp(Default::default()),
             NetworkConfiguration::Static {
-                address,
+                ref address,
                 prefix_len,
-                gateway,
-                dns_servers,
+                ref gateway,
+                ref dns_servers,
             } => {
                 let mut servers = Vec::new();
                 for s in dns_servers {
-                    let _ = servers.push(Ipv4Address(s));
+                    let _ = servers.push(Ipv4Address(s.clone()));
                 }
                 ConfigV4::Static(StaticConfigV4 {
-                    address: Ipv4Cidr::new(Ipv4Address(address), prefix_len),
+                    address: Ipv4Cidr::new(Ipv4Address(address.clone()), prefix_len),
                     gateway: gateway.map(|g| Ipv4Address(g)),
                     dns_servers: servers,
                 })
@@ -149,6 +149,9 @@ async fn run_wifi(mut controller: WifiController<'static>, stack_sta: &'static S
                 Err(e) => {
                     println!("failed to connect to wifi: {e:?}");
                 }
+            }
+            if CONFIG_WIFI.signaled() {
+                break;
             }
             // wait a bit after disconnect or connection failure
             Timer::after(Duration::from_secs(5)).await;

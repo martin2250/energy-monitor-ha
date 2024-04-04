@@ -47,9 +47,6 @@ impl MqttConfig {
     pub fn validate(&self) -> bool {
         // [a-zA-Z0-9_-]
         for s in [self.mqtt_client_id.as_str(), self.ha_unique_id.as_str(), self.ha_discovery_prefix.as_str()] {
-            if s.len() < 1 {
-                return false;
-            }
             for c in s.chars() {
                 match c {
                     'a'..='z' => (),
@@ -59,6 +56,9 @@ impl MqttConfig {
                     _ => return false,
                 }
             }
+        }
+        if self.ha_unique_id.len() < 1 || self.ha_discovery_prefix.len() < 1 {
+            return false;
         }
         true
     }
