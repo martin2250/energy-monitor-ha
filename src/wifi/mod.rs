@@ -87,7 +87,6 @@ async fn run_wifi(mut controller: WifiController<'static>, stack_sta: &'static S
     let mut config = CONFIG_WIFI.wait().await;
 
     loop {
-        // TODO: update stack config
         let net_config = match config.config {
             NetworkConfiguration::Dhcp => ConfigV4::Dhcp(Default::default()),
             NetworkConfiguration::Static {

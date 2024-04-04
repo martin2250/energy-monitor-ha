@@ -343,7 +343,6 @@ async fn publish_configurations<T: Read + Write, const MAX_PROPERTIES: usize, R:
     Some(())
 }
 
-// TODO: change everything to integers and use value_template to convert
 #[derive(Default, Serialize)]
 struct MqttSample {
     #[serde(rename = "freq", skip_serializing_if = "Option::is_none")]
