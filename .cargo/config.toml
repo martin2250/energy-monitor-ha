@@ -1,0 +1,18 @@
+[build]
+target = "xtensa-esp32-none-elf"
+
+[target.xtensa-esp32-none-elf]
+runner = "espflash flash --monitor --port /dev/ttyUSB0 --baud 230400"
+# runner = "espflash flash --monitor --port /dev/ttyUSB0 --baud 921600"
+
+rustflags = [
+  # GNU LD
+  "-C", "link-arg=-Wl,-Tlinkall.x",
+  "-C", "link-arg=-Trom_functions.x",
+]
+
+[unstable]
+build-std = ["core"]
+
+[env]
+SMOLTCP_DNS_MAX_SERVER_COUNT="5"

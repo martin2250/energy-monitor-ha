@@ -1,0 +1,22 @@
+{
+  "name": "stpm_e32_rs",
+  // Select between image and build propieties to pull or build the image.
+  "image": "docker.io/espressif/idf-rust:esp32_1.76.0.1",
+  "forwardPorts": [
+    9012,
+    9333,
+    8000
+  ],
+  "workspaceMount": "source=${localWorkspaceFolder},target=/home/esp/stpm_e32_rs,type=bind,consistency=cached",
+  "workspaceFolder": "/home/esp/stpm_e32_rs",
+  "runArgs": [
+    "--device=/dev/ttyUSB0"
+  ],
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "rust-lang.rust-analyzer"
+      ]
+    }
+  }
+}
