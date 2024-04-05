@@ -5,6 +5,8 @@ const VOLTAGE_REFERENCE: f32 = 1.18;
 const VOLTAGE_CALIBRATION: u16 = 0x800;
 const CURRENT_CALIBRATION: u16 = 0x800;
 
+pub const FIXED_DECIMALS: u32 = 15;
+
 #[derive(Clone, Copy, Debug)]
 pub struct ConversionParameters {
     // /// ADC reference voltage, 1.18 V by default
@@ -59,9 +61,9 @@ impl ConversionParameters {
 
         FloatCalibration {
             voltage_rms_lsb: VOLTAGE_REFERENCE * self.voltage_divider_factor
-                / (cal_voltage * 2.0 * (1 << 15) as f32),
+                / (cal_voltage * 2.0 * (1 << (15 - FIXED_DECIMALS)) as f32),
             current_rms_lsb: VOLTAGE_REFERENCE
-                / (self.current_shunt * cal_current * gain_current * (1 << 17) as f32),
+                / (self.current_shunt * cal_current * gain_current * (1 << (17 - FIXED_DECIMALS)) as f32),
             power_lsb: VOLTAGE_REFERENCE * VOLTAGE_REFERENCE * self.voltage_divider_factor
                 / (kint
                     * gain_voltage
@@ -69,7 +71,7 @@ impl ConversionParameters {
                     * self.current_shunt
                     * cal_voltage
                     * cal_current
-                    * (1 << 28) as f32),
+                    * (1 << (28 - FIXED_DECIMALS)) as f32),
             energy_lsb: VOLTAGE_REFERENCE * VOLTAGE_REFERENCE * self.voltage_divider_factor
                 / (dclk
                     * kint
@@ -78,7 +80,7 @@ impl ConversionParameters {
                     * self.current_shunt
                     * cal_voltage
                     * cal_current
-                    * (1 << 17) as f32),
+                    * (1 << (17 - FIXED_DECIMALS)) as f32),
         }
     }
 }
@@ -155,13 +157,13 @@ impl IntCalibration {
         let divisor = sample.num_samples as u64 * current_gain;
         IntCalibratedSample {
             // voltage: ignore current gain
-            voltage_rms: (sample.voltage_rms * self.voltage_rms_lsb as u64) / (sample.num_samples as u64),
+            voltage_rms: (sample.voltage_rms * self.voltage_rms_lsb as u64) / (sample.num_samples as u64) / (1 << FIXED_DECIMALS),
             // current and power: use num_samples and current gain
-            current_rms: (sample.current_rms * self.current_rms_lsb as u64) / divisor,
-            power_active: (sample.power_active * self.power_lsb as i64) / divisor as i64,
-            power_reactive: (sample.power_reactive * self.power_lsb as i64) / divisor as i64,
+            current_rms: (sample.current_rms * self.current_rms_lsb as u64) / divisor / (1 << FIXED_DECIMALS),
+            power_active: (sample.power_active * self.power_lsb as i64) / divisor as i64 / (1 << FIXED_DECIMALS),
+            power_reactive: (sample.power_reactive * self.power_lsb as i64) / divisor as i64 / (1 << FIXED_DECIMALS),
             // energy: ignore num_samples
-            energy_active: (sample.energy_active * self.energy_lsb) / current_gain as i64,
+            energy_active: (sample.energy_active * self.energy_lsb) / current_gain as i64 / (1 << FIXED_DECIMALS),
         }
     }
 }
