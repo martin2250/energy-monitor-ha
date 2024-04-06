@@ -1,5 +1,7 @@
 # STPM34 + ESP32 Energy Monitor
 
+Hardware files are [here](https://github.com/DM2PF/EnergyMonitor32).
+
 ## Setup
 - press button for 0.1s -> enable http configuration server (useful if already connected to wifi)
 - press button for 1s -> enable access point (no PW) and config server (192.168.4.1)
@@ -9,6 +11,11 @@
   - `/config_stpm.json`
   - `/config_calibration.json`
   - `/save` saves configuration to EEPROM
+
+You can use wget / curl to configure the device:
+- `wget http://100.124.102.101/config_calibration.json`
+- `curl -d "@config_calibration.json" -X POST http://100.124.102.101/config_calibration.json`
+- `curl -X POST http://100.124.102.101/save`
 
 ## LEDs
 - green
