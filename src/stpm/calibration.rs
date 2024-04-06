@@ -1,11 +1,14 @@
-use super::{chip::StpmCurrentGain, RawSampleApp};
+use super::RawSampleApp;
 
 // these are settings of the chip that we don't change
 const VOLTAGE_REFERENCE: f32 = 1.18;
 const VOLTAGE_CALIBRATION: u16 = 0x800;
 const CURRENT_CALIBRATION: u16 = 0x800;
 
-pub const FIXED_DECIMALS: u32 = 15;
+pub const FIXED_DECIMALS_VOLTAGE: u32 = 11;
+pub const FIXED_DECIMALS_CURRENT: u32 = 16;
+pub const FIXED_DECIMALS_POWER: u32 = 20;
+pub const FIXED_DECIMALS_ENERGY: u32 = 22;
 
 #[derive(Clone, Copy, Debug)]
 pub struct ConversionParameters {
@@ -46,13 +49,8 @@ impl ConversionParameters {
         let cal_current = 0.75 + CURRENT_CALIBRATION as f32 * (0.25 / 0x1000 as f32);
 
         let gain_voltage = 2.0;
-        let gain_current = 1.0;
-        // let gain_current = match self.current_gain {
-        //     StpmCurrentGain::X2 => 2.0,
-        //     StpmCurrentGain::X4 => 4.0,
-        //     StpmCurrentGain::X8 => 8.0,
-        //     StpmCurrentGain::X16 => 16.0,
-        // };
+        // the current gain is normalized to 16x in the stpm task
+        let gain_current = 16.0;
 
         // decimation clock in Hz
         let dclk = 7812.5 * self.oscillator_factor;
@@ -61,9 +59,12 @@ impl ConversionParameters {
 
         FloatCalibration {
             voltage_rms_lsb: VOLTAGE_REFERENCE * self.voltage_divider_factor
-                / (cal_voltage * 2.0 * (1 << (15 - FIXED_DECIMALS)) as f32),
+                / (cal_voltage * 2.0 * (1 << (15 - FIXED_DECIMALS_VOLTAGE)) as f32),
             current_rms_lsb: VOLTAGE_REFERENCE
-                / (self.current_shunt * cal_current * gain_current * (1 << (17 - FIXED_DECIMALS)) as f32),
+                / (self.current_shunt
+                    * cal_current
+                    * gain_current
+                    * (1 << (17 - FIXED_DECIMALS_CURRENT)) as f32),
             power_lsb: VOLTAGE_REFERENCE * VOLTAGE_REFERENCE * self.voltage_divider_factor
                 / (kint
                     * gain_voltage
@@ -71,16 +72,18 @@ impl ConversionParameters {
                     * self.current_shunt
                     * cal_voltage
                     * cal_current
-                    * (1 << (28 - FIXED_DECIMALS)) as f32),
-            energy_lsb: VOLTAGE_REFERENCE * VOLTAGE_REFERENCE * self.voltage_divider_factor
+                    * (1 << (28 - FIXED_DECIMALS_POWER)) as f32),
+            energy_lsb: VOLTAGE_REFERENCE
+                * VOLTAGE_REFERENCE
+                * self.voltage_divider_factor
+                * (1 << (FIXED_DECIMALS_ENERGY - 17)) as f32
                 / (dclk
                     * kint
                     * gain_voltage
                     * gain_current
                     * self.current_shunt
                     * cal_voltage
-                    * cal_current
-                    * (1 << (17 - FIXED_DECIMALS)) as f32),
+                    * cal_current),
         }
     }
 }
@@ -105,7 +108,7 @@ impl FloatCalibration {
             voltage_rms_lsb: (1e3 * self.voltage_rms_lsb) as u32,
             current_rms_lsb: (1e4 * self.current_rms_lsb) as u32,
             power_lsb: (1e3 * self.power_lsb) as i32,
-            energy_lsb: (1e3 * self.energy_lsb) as i64,
+            energy_lsb: (10.0 * self.energy_lsb) as i64,
         }
     }
 }
@@ -148,31 +151,32 @@ pub struct IntCalibration {
 
 impl IntCalibration {
     pub fn apply(&self, sample: RawSampleApp) -> IntCalibratedSample {
-        let current_gain = match sample.current_gain {
-            StpmCurrentGain::X2 => 2,
-            StpmCurrentGain::X4 => 4,
-            StpmCurrentGain::X8 => 8,
-            StpmCurrentGain::X16 => 16,
-        };
-        let divisor = sample.num_samples as u64 * current_gain;
         IntCalibratedSample {
             // voltage: ignore current gain
-            voltage_rms: (sample.voltage_rms * self.voltage_rms_lsb as u64) / (sample.num_samples as u64) / (1 << FIXED_DECIMALS),
+            voltage_rms: (sample.voltage_rms * self.voltage_rms_lsb as u64)
+                / (sample.num_samples as u64)
+                / (1 << FIXED_DECIMALS_VOLTAGE),
             // current and power: use num_samples and current gain
-            current_rms: (sample.current_rms * self.current_rms_lsb as u64) / divisor / (1 << FIXED_DECIMALS),
-            power_active: (sample.power_active * self.power_lsb as i64) / divisor as i64 / (1 << FIXED_DECIMALS),
-            power_reactive: (sample.power_reactive * self.power_lsb as i64) / divisor as i64 / (1 << FIXED_DECIMALS),
+            current_rms: (sample.current_rms * self.current_rms_lsb as u64)
+                / (sample.num_samples as u64)
+                / (1 << FIXED_DECIMALS_CURRENT),
+            power_active: (sample.power_active * self.power_lsb as i64)
+                / (sample.num_samples as i64)
+                / (1 << FIXED_DECIMALS_POWER),
+            power_reactive: (sample.power_reactive * self.power_lsb as i64)
+                / (sample.num_samples as i64)
+                / (1 << FIXED_DECIMALS_POWER),
             // energy: ignore num_samples
-            energy_active: (sample.energy_active * self.energy_lsb) / current_gain as i64 / (1 << FIXED_DECIMALS),
+            energy_active: (sample.energy_active * self.energy_lsb) / (1 << FIXED_DECIMALS_ENERGY),
         }
     }
 }
 
 #[derive(Clone, Copy, Debug)]
 pub struct IntCalibratedSample {
-    pub voltage_rms: u64, // 3 decimal places
-    pub current_rms: u64, // 4 decimal places
-    pub power_active: i64, // 3 decimal places
+    pub voltage_rms: u64,    // 3 decimal places
+    pub current_rms: u64,    // 4 decimal places
+    pub power_active: i64,   // 3 decimal places
     pub power_reactive: i64, // 3 decimal places
-    pub energy_active: i64, // 3 decimal places
+    pub energy_active: i64,  // 1 decimal places
 }

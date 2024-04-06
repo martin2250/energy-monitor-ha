@@ -277,14 +277,14 @@ async fn publish_configurations<T: Read + Write, const MAX_PROPERTIES: usize, R:
         (0, "curr1", "/1e4", "A", Current, "Current", enable[0].current),
         (0, "powa1", "/1e3", "W", Power, "Power", enable[0].active_power),
         (0, "powr1", "/1e3", "var", ReactivePower, "ReactivePower", enable[0].reactive_power),
-        (0, "engy1", "/1e3", "Ws", Energy, "Energy", enable[0].energy),
+        (0, "engy1", "/10", "Ws", Energy, "Energy", enable[0].energy),
         // ch 2
         (1, "freq", "/1e4", "Hz", Frequency, "Frequency", enable[1].frequency),
         (1, "volt2", "/1e3", "V", Voltage, "Voltage", enable[1].voltage),
         (1, "curr2", "/1e4", "A", Current, "Current", enable[1].current),
         (1, "powa2", "/1e3", "W", Power, "Power", enable[1].active_power),
         (1, "powr2", "/1e3", "var", ReactivePower, "ReactivePower", enable[1].reactive_power),
-        (1, "engy2", "/1e3", "Ws", Energy, "Energy", enable[1].energy),
+        (1, "engy2", "/10", "Ws", Energy, "Energy", enable[1].energy),
     ];
 
     // entity template

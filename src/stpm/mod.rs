@@ -36,7 +36,6 @@ pub struct RawSampleApp {
     pub power_reactive: i64,
     pub energy_active: i64,
     pub num_samples: usize,
-    pub current_gain: StpmCurrentGain,
 }
 
 pub static SAMPLES: Signal<CriticalSectionRawMutex, [RawSampleApp; 2]> = Signal::new();
@@ -187,9 +186,6 @@ where
                 // update other values
                 acc_samples[i].energy_active = energy_accumulator[i];
                 acc_samples[i].num_samples = config.samples_stpm;
-                // since anti-gain was applied, always set this to x16
-                // TODO: remove current gain from sample
-                acc_samples[i].current_gain = StpmCurrentGain::X16; // config.current_gain[i];
             }
             // send to MQTT
             SAMPLES.signal(acc_samples);
