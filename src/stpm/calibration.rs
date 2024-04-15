@@ -83,7 +83,8 @@ impl ConversionParameters {
                     * gain_current
                     * self.current_shunt
                     * cal_voltage
-                    * cal_current),
+                    * cal_current
+                    * 3600.0), // convert Ws to Wh
         }
     }
 }
@@ -98,7 +99,7 @@ pub struct FloatCalibration {
     pub current_rms_lsb: f32,
     /// in watts
     pub power_lsb: f32,
-    /// in watt seconds
+    /// in watt hours
     pub energy_lsb: f32,
 }
 
@@ -108,7 +109,7 @@ impl FloatCalibration {
             voltage_rms_lsb: (1e3 * self.voltage_rms_lsb) as u32,
             current_rms_lsb: (1e4 * self.current_rms_lsb) as u32,
             power_lsb: (1e3 * self.power_lsb) as i32,
-            energy_lsb: (10.0 * self.energy_lsb) as i64,
+            energy_lsb: (1e3 * self.energy_lsb) as i64,
         }
     }
 }
