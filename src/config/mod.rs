@@ -40,6 +40,8 @@ pub async fn run_config(i2c: AppI2C) {
 
     println!("using default config");
 
+    server::STATE.lock().await.replace(ServerState::default());
+
     CONFIG_MQTT.signal(Default::default());
     CONFIG_WIFI.signal(Default::default());
     CONFIG_STPM.signal(Default::default());
