@@ -10,7 +10,7 @@ use picoserve::{
 use static_cell::make_static;
 
 use crate::{
-    config::CONFIG_SERVER_ENABLE,
+    config::{CONFIG_SERVER_ENABLE, RESET_ACCUMULATOR},
     wifi::{StackAp, StackSta},
 };
 
@@ -60,6 +60,7 @@ pub async fn run_config_server(stack_sta: &'static StackSta, stack_ap: Option<&'
                 get(get_config_stpm).post(post_config_stpm),
             )
             .route("/save", post(post_save_config))
+            .route("/reset_accumulator", post(post_reset_accumulator))
     }
 
     let app = make_static!(make_app());
@@ -231,4 +232,9 @@ async fn post_save_config() -> impl IntoResponse {
     } else {
         (StatusCode::INTERNAL_SERVER_ERROR, "error while saving to flash")
     }
+}
+
+async fn post_reset_accumulator() -> impl IntoResponse {
+    RESET_ACCUMULATOR.signal(());
+    (StatusCode::OK, "OK")
 }

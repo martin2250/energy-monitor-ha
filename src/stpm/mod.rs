@@ -4,15 +4,15 @@ mod driver;
 mod sample;
 
 pub use chip::StpmCurrentGain;
-use embassy_futures::select::{select, Either};
+use embassy_futures::select::{select3, Either3};
 
-use crate::{config::{StpmConfig, CONFIG_STPM}, stpm::sample::{read_samples, RawSampleChip}};
+use crate::{config::{self, StpmConfig, CONFIG_STPM, RESET_ACCUMULATOR}, stpm::sample::{read_samples, RawSampleChip}};
 use chip::{Stpm, StpmChannelConfiguration, StpmConfiguration};
 use core::fmt::Debug;
 use driver::spi::StpmSpiDriver;
 use driver::StpmDriver;
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal};
-use embassy_time::{Duration, Ticker, Timer};
+use embassy_time::{Duration, Instant, Ticker, Timer};
 use esp_hal::{
     clock::Clocks,
     dma::{DmaPriority, Spi3DmaChannelCreator},
@@ -54,7 +54,7 @@ pub async fn run_stpm(
 ) {
     let (mut descriptors, mut rx_descriptors) = dma_descriptors!(256);
 
-    let spi = Spi::new(spi3, 4.MHz(), SpiMode::Mode3, &clocks)
+    let spi = Spi::new(spi3, 2.MHz(), SpiMode::Mode3, &clocks)
         .with_sck(sclk)
         .with_mosi(mosi)
         .with_miso(miso)
@@ -74,7 +74,7 @@ pub async fn run_stpm(
 
     let mut config = CONFIG_STPM.wait().await;
 
-    let mut energy_accumulator = [0i64; 2];
+    let mut energy_accumulator = config::read_accumulator().await.unwrap_or([0i64; 2]);
 
     loop {
         if None == once_stpm(&mut driver, &mut config, &mut energy_accumulator).await {
@@ -133,14 +133,20 @@ where
     let mut sample_cnt = 0;
     let mut energy_last = [0u32; 2];
 
+    let mut accumulator_last_write = Instant::now();
+
     loop {
         // check if there is a new configuration / wait for ticker
-        match select(CONFIG_STPM.wait(), ticker.next()).await {
-            Either::First(new_config) => {
+        match select3(CONFIG_STPM.wait(), RESET_ACCUMULATOR.wait(), ticker.next()).await {
+            Either3::First(new_config) => {
                 *config = new_config;
                 return Some(());
             },
-            Either::Second(_) => (),
+            Either3::Second(_) => {
+                *energy_accumulator = [0; 2];
+                continue;
+            },
+            Either3::Third(_) => (),
         }
 
         // try read
@@ -192,6 +198,11 @@ where
             // reset
             sample_cnt = 0;
             acc_samples = Default::default();
+        }
+
+        if Instant::now().duration_since(accumulator_last_write).as_millis() > 1000 {
+            let _ = config::write_accumulator(energy_accumulator).await;
+            accumulator_last_write = Instant::now();
         }
     }
 }

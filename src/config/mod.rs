@@ -23,6 +23,7 @@ pub static CONFIG_MQTT: Signal<MqttConfig> = Signal::new();
 pub static CONFIG_WIFI: Signal<WifiConfig> = Signal::new();
 pub static CONFIG_STPM: Signal<StpmConfig> = Signal::new();
 pub static CONFIG_CALIBRATION: Signal<CalibrationConfig> = Signal::new();
+pub static RESET_ACCUMULATOR: Signal<()> = Signal::new();
 
 type AppI2C = I2C<'static, I2C0>;
 
@@ -52,6 +53,7 @@ pub async fn run_config(i2c: AppI2C) {
 
 const CRC: Crc<u32> = Crc::<u32>::new(&CRC_32_ISCSI);
 const EEPROM_ADDR: u8 = 0b101_0000;
+const FRAM_ADDR: u8 = 0b1010_010;
 
 async fn read_config() -> Result<(), ()> {
     let mut buffer = [0u8; 4096];
@@ -189,4 +191,52 @@ pub async fn save_config() -> Option<()> {
     println!("end saving to EEPROM");
 
     Some(())
+}
+
+pub async fn read_accumulator() -> Result<[i64; 2], ()> {
+    let mut i2c = EEPROM_I2C.lock().await;
+    let i2c = i2c.as_mut().unwrap();
+
+    // read with address setup first
+    // we have a 8K FRAM -> two address bytes
+    let buffer_write = 0u16.to_be_bytes();
+    let mut buffer_read = [0u8; 20];
+    let res = i2c.write_read(FRAM_ADDR, &buffer_write, &mut buffer_read).await;
+
+    if let Err(e) = res {
+        println!("error reading accumulator from i2c {e:?}");
+        return Err(());
+    }
+
+    match postcard::from_bytes_crc32::<[i64; 2]>(&buffer_read, CRC.digest()) {
+        Ok(acc) => Ok(acc),
+        Err(_) => {
+            println!("error deserializing accumulator");
+            Err(())
+        }
+    }
+}
+
+pub async fn write_accumulator(accumulator: &[i64; 2]) -> Result<(), ()> {
+    let mut i2c = EEPROM_I2C.lock().await;
+    let i2c = i2c.as_mut().unwrap();
+
+    let mut buffer = [0u8; 22];
+    
+    match postcard::to_slice_crc32(accumulator, &mut buffer[2..], CRC.digest()) {
+        Ok(_) => {},
+        Err(_) => {
+            println!("error serializing accumulator");
+            return Err(());
+        }
+    }
+
+    let res = i2c.write(FRAM_ADDR, &buffer).await;
+
+    if let Err(e) = res {
+        println!("error writing accumulator to i2c {e:?}");
+        return Err(());
+    }
+
+    Ok(())
 }
